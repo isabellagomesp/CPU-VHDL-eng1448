@@ -1,0 +1,15 @@
+*.jou
+*.log
+*.str
+*.wdb
+*.pb
+*.tmp
+*.bak
+*.cache
+*.vcd
+*.wlf
+work/
+xsim.dir/
+simulation/
+db/
+incremental_db/
