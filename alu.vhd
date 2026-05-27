@@ -100,6 +100,38 @@ begin
                 -- CARRY 
                 FLAGS(4) <= temp(8);
 
+            -- INC: A + 1 -> = opcode 0010
+            when "0010" =>
+                temp := unsigned('0' & A) + 1;
+                
+                --resultado 
+                S <= STD_LOGIC_VECTOR(temp(7 downto 0));
+
+                --carry
+                C_OUT <= temp(8);
+
+                if temp(7 downto 0) = 0 then -- operacao so depende de 1 opeando, entao unicas flags uteis sao:
+                    FLAGS(0) <= '1'; -- zero
+                end if;
+
+                FLAGS(4) <= temp(8); -- carry
+
+            --DEC: A - 1 -> opcode 0011
+            when "0011" =>
+                temp := unsigned('0' & A) - 1;
+                
+                --resultado 
+                S <= STD_LOGIC_VECTOR(temp(7 downto 0));
+
+                --carry
+                C_OUT <= temp(8);
+
+                if temp(7 downto 0) = 0 then -- operacao so depende de 1 opeando, entao unicas flags uteis sao:
+                    FLAGS(0) <= '1';  -- zero
+                end if;
+
+                FLAGS(4) <= temp(8); -- carry
+
             when others => null;
         end case;
     end process;

@@ -63,6 +63,30 @@ begin
         CMD <= "0001";
         wait for 10 ns;
 
+        -- Teste 7: INC 10 = 11
+        A <= x"0A";
+        B <= x"00";
+        CMD <= "0010";
+        wait for 10 ns;
+
+        -- Teste 8: INC 255 = 0 com carry
+        A <= x"FF";
+        B <= x"00";
+        CMD <= "0010";
+        wait for 10 ns;
+
+        -- Teste 9: DEC 10 = 9
+        A <= x"0A";
+        B <= x"00";
+        CMD <= "0011";
+        wait for 10 ns;
+
+        -- Teste 10: DEC 0 = 255 com underflow
+        A <= x"00";
+        B <= x"00";
+        CMD <= "0011";
+        wait for 10 ns;
+
         wait;
     end process;
 
