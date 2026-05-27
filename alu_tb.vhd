@@ -45,6 +45,24 @@ begin
         CMD <= "0000";
         wait for 10 ns;
 
+        -- Teste 4: 10 - 3 = 7
+        A <= x"0A";
+        B <= x"03";
+        CMD <= "0001";
+        wait for 10 ns;
+
+        -- Teste 5: 5 - 5 = 0
+        A <= x"05";
+        B <= x"05";
+        CMD <= "0001";
+        wait for 10 ns;
+
+        -- Teste 6: 3 - 5 = 254 com underflow
+        A <= x"03";
+        B <= x"05";
+        CMD <= "0001";
+        wait for 10 ns;
+
         wait;
     end process;
 

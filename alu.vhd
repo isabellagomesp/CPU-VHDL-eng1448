@@ -47,12 +47,48 @@ begin
                 end if;
 
                 --flags(1) -> GREATER
-                if unsigned(A) < unsigned(B) then 
+                if unsigned(A) > unsigned(B) then 
                     FLAGS(1) <= '1';
                 end if;
 
                 --flags(2) -> SMALLER
+                if unsigned(A) < unsigned(B) then 
+                    FLAGS(2) <= '1';
+                end if;
+
+                --flags(3) -> EQUAL
+                if unsigned(A) = unsigned(B) then 
+                    FLAGS(3) <= '1';
+                end if;
+
+                -- CARRY 
+                FLAGS(4) <= temp(8);
+
+            -- SUB = opcode 0001
+            when "0001"=>
+
+                --subtração com 9 bits para detectar carry
+                temp := unsigned('0' & A) - unsigned('0' & B);
+
+                -- resultado 
+                S <= STD_LOGIC_VECTOR(temp(7 downto 0));
+
+                --carry
+                C_OUT <= temp(8);
+
+                --Flags
+                --flags(0) -> ZERO
+                if temp(7 downto 0) = 0 then 
+                    FLAGS(0) <= '1';
+                end if;
+
+                --flags(1) -> GREATER
                 if unsigned(A) > unsigned(B) then 
+                    FLAGS(1) <= '1';
+                end if;
+
+                --flags(2) -> SMALLER
+                if unsigned(A) < unsigned(B) then 
                     FLAGS(2) <= '1';
                 end if;
 
