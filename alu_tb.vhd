@@ -87,6 +87,36 @@ begin
         CMD <= "0011";
         wait for 10 ns;
 
+        -- Teste 11: AND
+        A <= "10101010";
+        B <= "11001100";
+        CMD <= "0100";
+        wait for 10 ns;
+
+        -- Teste 12: OR
+        A <= "10101010";
+        B <= "11001100";
+        CMD <= "0101";
+        wait for 10 ns;
+
+        -- Teste 13: NOT
+        A <= "10101010";
+        B <= x"00";
+        CMD <= "0110";
+        wait for 10 ns;
+
+        -- Teste 14: XOR
+        A <= "10101010";
+        B <= "11001100";
+        CMD <= "0111";
+        wait for 10 ns;
+
+        -- Teste 15: AND com resultado zero
+        A <= "00001111";
+        B <= "11110000";
+        CMD <= "0100";
+        wait for 10 ns;
+
         wait;
     end process;
 

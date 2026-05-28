@@ -131,6 +131,40 @@ begin
                 end if;
 
                 FLAGS(4) <= temp(8); -- carry
+        
+        -- operadores bit a bit -> não usa 9 bits -> não usa temp -> não tem carry
+        -- não comparamos valores então greater, smaller e equal não fazem sentido
+            -- AND = opcode 0100
+            when "0100" =>
+                S <= A and B;
+
+                if (A and B) = x"00" then -- se a operacao foi zero -> x00 = 00000000
+                    FLAGS(0) <= '1';
+                end if;
+
+            -- OR = opcode 0101
+            when "0101" =>
+                S <= A or B;
+
+                if (A or B) = x"00" then -- se a operacao foi zero -> x00 = 00000000
+                    FLAGS(0) <= '1';
+                end if;
+
+            -- not = opcode 0110
+            when "0110" =>
+                S <= not A;
+
+                if (not A) = x"00" then -- se a operacao foi zero -> x00 = 00000000
+                    FLAGS(0) <= '1';
+                end if;
+
+            -- XOR = opcode 0111
+            when "0111" =>
+                S <= A xor B;
+
+                if (A xor B) = x"00" then -- se a operacao foi zero -> x00 = 00000000
+                    FLAGS(0) <= '1';
+                end if;
 
             when others => null;
         end case;
