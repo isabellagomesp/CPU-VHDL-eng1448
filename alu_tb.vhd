@@ -1,11 +1,24 @@
-library IEEE;
-use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.NUMERIC_STD.ALL;
-
-entity alu_tb is
-end alu_tb;
-
-architecture Behavioral of alu_tb is
+LIBRARY ieee;
+USE ieee.std_logic_1164.ALL;
+USE ieee.numeric_std.ALL;
+ 
+ENTITY alu_tb IS
+END alu_tb;
+ 
+ARCHITECTURE behavior OF alu_tb IS 
+ 
+    COMPONENT alu
+    PORT(
+         A : IN  std_logic_vector(7 downto 0);
+         B : IN  std_logic_vector(7 downto 0);
+         CMD : IN  std_logic_vector(3 downto 0);
+         C_IN : IN  std_logic;
+         C_OUT : OUT  std_logic;
+         FLAGS : OUT  std_logic_vector(4 downto 0);
+         S : OUT  std_logic_vector(7 downto 0)
+        );
+    END COMPONENT;
+    
 
     signal A : STD_LOGIC_VECTOR(7 downto 0) := (others => '0');
     signal B : STD_LOGIC_VECTOR(7 downto 0) := (others => '0');
@@ -14,7 +27,7 @@ architecture Behavioral of alu_tb is
     signal C_out : STD_LOGIC;
     signal FLAGS : STD_LOGIC_VECTOR(4 downto 0);
     signal S : STD_LOGIC_VECTOR(7 downto 0);
-
+ 
 begin
 
     uut: entity work.alu(Behavioral)
@@ -116,8 +129,28 @@ begin
         B <= "11110000";
         CMD <= "0100";
         wait for 10 ns;
+		
+		-- Teste 16: ROL
+		A <= "10110001";
+        CMD <= "1000";
+        wait for 10 ns;
+		
+		-- Teste 17: ROR
+		A <= "10110001";
+        CMD <= "1001";
+        wait for 10 ns;
+		
+		-- Teste 18: LSL
+		A <= "10110001";
+        CMD <= "1010";
+        wait for 10 ns;
+		
+		-- Teste 18: LSR
+		A <= "10110001";
+        CMD <= "1011";
+        wait for 10 ns;
 
         wait;
     end process;
 
-end Behavioral;
+end behavior;
