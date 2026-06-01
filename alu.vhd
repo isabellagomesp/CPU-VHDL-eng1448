@@ -32,7 +32,7 @@ begin
             -- ADD = opcode 0000
             when "0000" =>
                 --soma com 9 bits para detectar o carry 
-                temp := unsigned('0'& A) + unsigned('0' & B); -- '0'adiciona um bit extra na frente
+                temp := unsigned('0' & A) + unsigned('0' & B); -- '0'adiciona um bit extra na frente
 
                 --resultado
                 S <= STD_LOGIC_VECTOR(temp(7 downto 0)); -- pega os 8 bits inferiores
@@ -165,15 +165,53 @@ begin
                 if (A xor B) = x"00" then -- se a operacao foi zero -> x00 = 00000000
                     FLAGS(0) <= '1';
                 end if;
+				
+			-- ROL = opcode 1000 -> rotate left
+			when "1000" => 
+				S <= A(6 downto 0) & A(7); -- bit da esquerda gira para a direita
+				
+				if (A(6 downto 0) & A(7)) = x"00" then
+					FLAGS(0) <= '1';
+				end if;
+				
+			-- ROT = opcode 1001 -> rotate right 
+			when "1001" => 
+				S <= A(7) & A(7 downto 1); -- bit da direita gira para a esquera
+				
+				if (A(7) & A(7 downto 1)) = x"00" then
+					FLAGS(0) <= '1';
+				end if;
+				
+			-- LSL = opcode 1010 -> logical shift left
+			when "1010" => 
+				S <= A(6 downto 0) & '0'; -- bit mais a esquerda sai e entra o 0
+				
+				if (A(6 downto 0) & '0') = x"00" then
+					FLAGS(0) <= '1';
+				end if;
+				
+				FLAGS(4) <= A(7); -- bit que saiu vira carry
+				
+			-- LSR = opcode 1011 -> logical shift right 
+			when "1011" => 
+				S <= '0' & A(7 downto 1); --bit mais a direita sai e entra o 0
+				
+				if ('0' & A(7 downto 1)) = x"00" then
+					FLAGS(0) <= '1';
+				end if;
+				
+				FLAGS(4) <= A(0);
 
             when others => null;
         end case;
     end process;
+	
 end Behavioral; 
 
 
 
                 
                 
+
 
 
