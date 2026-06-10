@@ -87,6 +87,9 @@ architecture Behavioral of CPU is
     signal alu_flags      : std_logic_vector(4 downto 0);
 
 begin
+    ram_addr <= MAR;
+    ram_dout <= MBR;
+
     -- Instanciação da ALU
     U_ALU: alu port map(
         A     => alu_operando_A,
@@ -166,119 +169,134 @@ begin
     end process;
 
     -- Processo responsável por determinar o próximo estado e os sinais de controle
-    FSM_LOGIC: process(current_state, IR, alu_flags, MBR, PC, REG, ram_din)
+    FSM_LOGIC: process(current_state, IR, alu_flags, MBR, PC, MAR, REG, ram_din)
     begin
-        next_state <= current_state; -- Valor padrão (permanece no mesmo estado)
+        -- Valores Padrão Absolutos
+        next_state   <= current_state; 
         update_flags <= '0';
+        ram_we       <= '0'; 
 
-        -- Sinais de escrita e roteamento dos registradores
         reg_write_en <= '0';
         reg_dest     <= (others => '0');
         reg_data_in  <= (others => '0');
         
-        -- Enable dos registradores específicos
         PC_en  <= '0';
         IR_en  <= '0';
         MAR_en <= '0';
         MBR_en <= '0';
 
-        -- Valores a serem carregados nos Registradores Específicos
         next_PC  <= (others => '0');
         next_IR  <= (others => '0');
         next_MAR <= (others => '0');
         next_MBR <= (others => '0');
         
-        -- Controles do Stack Pointer
         SP_inc <= '0';
         SP_dec <= '0';
 
-        -- Controles da Memória RAM
-        ram_we   <= '0';
-        ram_addr <= (others => '0');
-        ram_dout <= (others => '0');
-
+        -- Máquina de Estados
         case current_state is
+            
             when FETCH =>
-                ram_addr <= PC; -- Envia o endereço do PC para a RAM
-                next_IR <= ram_din; -- O dado lido da RAM será o próximo IR
-                IR_en <= '1'; -- Habilita a escrita no IR
-                next_PC <= std_logic_vector(unsigned(PC) + 1); -- Incrementa o PC para a próxima instrução
-                PC_en <= '1'; -- Habilita a escrita no PC
-                next_state <= DECODE_1; -- Transição para o estado de Decodificação 1
+                -- O MAR já contém o endereço do PC devido à inicialização ou ao estado anterior (Antecipação)
+                next_IR    <= ram_din;      
+                IR_en      <= '1';
+                next_PC    <= std_logic_vector(unsigned(PC) + 1); 
+                PC_en      <= '1';
+                next_state <= DECODE_1;
 
             when DECODE_1 =>
                 if (IR(7 downto 4) = "1000" and (IR(1 downto 0) = "10" or IR(1 downto 0) = "11")) or 
                    (IR(7 downto 4) = "1100" and IR(3 downto 0) = "0000") then
                     
-                    next_state <= DECODE_2;   -- Precisa ir na RAM buscar o complemento (0x--)
+                    -- ANTECIPAÇÃO: Prepara o MAR com o PC (que já aponta para o 2º byte) para usar no DECODE_2
+                    next_MAR   <= PC;
+                    MAR_en     <= '1';
+                    next_state <= DECODE_2; 
                 else
-                    next_state <= EXECUTE;    -- Instrução de 1 byte, pode executar direto
+                    next_state <= EXECUTE;
                 end if;
 
             when DECODE_2 =>
-                ram_addr   <= PC;        -- O PC já aponta para a posição do dado/endereço (0x--) 
-                next_MBR   <= ram_din;   -- Guarda o valor lido temporariamente no MBR
-                MBR_en     <= '1';
+                -- O MAR já está a apontar para o 2º byte graças à antecipação no DECODE_1.
+                -- A memória já colocou o valor no ram_din.
                 
-                -- Incrementa o PC novamente para apontar para a próxima instrução real do programa
-                next_PC    <= std_logic_vector(unsigned(PC) + 1);
+                -- Se for ST Rx, 0x-- (OpCode: 1000 xx 11)
+                if IR(7 downto 4) = "1000" and IR(1 downto 0) = "11" then
+                    -- ANTECIPAÇÃO PARA EXECUTE: O MAR vai receber o endereço alvo e o MBR recebe o dado a salvar
+                    next_MAR <= ram_din; 
+                    MAR_en   <= '1';
+                    next_MBR <= REG(to_integer(unsigned(IR(3 downto 2)))); 
+                    MBR_en   <= '1';
+                else
+                    -- Para LD e JMP, guardamos simplesmente o valor imediato no MBR
+                    next_MBR <= ram_din;      
+                    MBR_en   <= '1';
+                end if;
+                
+                next_PC    <= std_logic_vector(unsigned(PC) + 1); 
                 PC_en      <= '1';
-                
                 next_state <= EXECUTE;
 
             when EXECUTE =>
                 -- ADD Rx, Ry (OpCode: 0000)
                 if IR(7 downto 4) = "0000" then
-                    update_flags <= '1';        -- Comanda o salvamento das flags geradas nesta instrução
+                    update_flags <= '1';    
                     next_state   <= WRITE_BACK;
 
                 -- JMP 0x-- (OpCode: 1100 0000)
                 elsif IR(7 downto 4) = "1100" and IR(3 downto 0) = "0000" then
-                    next_PC      <= MBR;        -- Carrega o endereço alvo guardado no MBR para o PC
+                    next_PC      <= MBR;    
                     PC_en        <= '1';
+                    
+                    -- ANTECIPAÇÃO: Prepara o MAR para o FETCH da nova morada (salto)
+                    next_MAR     <= MBR; 
+                    MAR_en       <= '1';
                     next_state   <= FETCH;
 
                 -- ST Rx, 0x-- (OpCode: 1000 xx 11)
                 elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "11" then
-                    ram_addr     <= MBR;        -- Destino da escrita fornecido pelo MBR
-                    ram_dout     <= REG(to_integer(unsigned(IR(3 downto 2)))); -- Dado lido do registrador Rx
-                    ram_we       <= '1';        -- Dispara pulso de escrita na RAM
+                    -- O MAR já tem a morada da memória e o MBR tem o dado (preparados no DECODE_2)
+                    ram_we       <= '1'; 
+                    
+                    -- ANTECIPAÇÃO: Devolve o PC ao MAR para o próximo FETCH
+                    next_MAR     <= PC;
+                    MAR_en       <= '1';
                     next_state   <= FETCH;
 
                 else
-                    next_state   <= FETCH;      -- Prevenção para instruções ainda não mapeadas
+                    -- ANTECIPAÇÃO GERAL: Prepara o MAR com o PC atual para o FETCH seguinte
+                    next_MAR     <= PC;
+                    MAR_en       <= '1';
+                    next_state   <= FETCH; 
                 end if;
 
             when WRITE_BACK =>
-                -- Ativação do Enable de escrita e definição do destino do dado a ser salvo
                 reg_write_en <= '1';
-                reg_dest     <= IR(3 downto 2); -- Na sua arquitetura, Rx fica sempre nestes bits 
+                reg_dest     <= IR(3 downto 2); 
 
-                -- Condição 1: A instrução foi uma soma (ADD) ou subtração (SUB) 
+                -- ADD ou SUB
                 if IR(7 downto 4) = "0000" or IR(7 downto 4) = "0001" then 
                     reg_data_in <= alu_resultado;
 
-                -- Condição 2: A instrução foi um Load da RAM (LDR Rx, [Ry] -> OpCode 1001) 
+                -- LDR Rx, [Ry]
                 elsif IR(7 downto 4) = "1001" then
-                    -- A RAM já recebeu o endereço no estado EXECUTE e agora está respondendo
                     reg_data_in <= ram_din;
 
-                -- Condição 3: A instrução foi um Move (MOV Rx, Ry -> OpCode 1011) 
+                -- MOV Rx, Ry
                 elsif IR(7 downto 4) = "1011" then
-                    -- Copia o dado diretamente de Ry
                     reg_data_in <= REG(to_integer(unsigned(IR(1 downto 0)))); 
 
-                -- Condição 4: A instrução foi um Load imediato (LD Rx, 0x-- -> OpCode 1000 Rx 10) 
+                -- LD Rx, 0x--
                 elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "10" then
-                    -- O valor 0x-- foi lido da RAM no estado DECODE_2 e aguardou no MBR
                     reg_data_in <= MBR;
-                    
                 end if;
-                                
-                next_state <= FETCH; -- Fim do ciclo de instrução. Busca o próximo comando.
+                
+                next_MAR   <= PC;
+                MAR_en     <= '1';                
+                next_state <= FETCH; 
 
             when others =>
-                next_state <= FETCH; -- Retorna ao estado inicial em caso de erro
+                next_state <= FETCH;
         end case;
     end process;
-        
+end Behavioral;
