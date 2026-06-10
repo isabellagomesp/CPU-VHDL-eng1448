@@ -3,11 +3,12 @@ USE ieee.std_logic_1164.ALL;
 USE ieee.numeric_std.ALL;
 
 -- Declaração da Entidade
-entity CPU is {
+entity CPU is
+    port (
     clk   : in std_logic;
     reset : in std_logic;
 
-    -- Sinais controlados pela FSM
+    -- Interface com a Memória RAM
     ram_addr   : out std_logic_vector(7 downto 0); -- Endereço enviado para a RAM
     ram_din    : in  std_logic_vector(7 downto 0); -- Dado lido vindo da RAM
     ram_dout   : out std_logic_vector(7 downto 0); -- Dado enviado para escrita na RAM
@@ -15,7 +16,8 @@ entity CPU is {
     
     current_ir : out std_logic_vector(7 downto 0); -- Envia o IR atual para decodificação do LCD
     alu_leds   : out std_logic_vector(4 downto 0)
-}
+    );
+end CPU;
 
 architecture Behavioral of CPU is
 
@@ -60,7 +62,40 @@ architecture Behavioral of CPU is
     signal SP_inc : std_logic := '0'; -- Usado pelo comando POP
     signal SP_dec : std_logic := '0'; -- Usado pelo comando PUSH
 
+    -- Componente ALU
+    component alu is 
+        port( A     : in  STD_LOGIC_VECTOR(7 downto 0);
+              B     : in  STD_LOGIC_VECTOR(7 downto 0);
+              CMD   : in  STD_LOGIC_VECTOR(3 downto 0);
+              C_IN  : in  STD_LOGIC;
+              C_OUT : out STD_LOGIC;
+              FLAGS : out STD_LOGIC_VECTOR(4 downto 0);
+              S     : out STD_LOGIC_VECTOR(7 downto 0)
+        );
+    end component;
+
+    -- Sinais de Controle ALU
+    signal alu_operando_A : std_logic_vector(7 downto 0);
+    signal alu_operando_B : std_logic_vector(7 downto 0);
+    signal alu_comando    : std_logic_vector(3 downto 0);
+    signal alu_resultado  : std_logic_vector(7 downto 0);
+    signal alu_carry_out  : std_logic;
+    signal alu_flags      : std_logic_vector(4 downto 0);
+
 begin
+    -- Instanciação da ALU
+    U_ALU: alu port map(
+        A     => alu_operando_A,
+        B     => alu_operando_B,
+        CMD   => alu_comando,
+        C_IN  => '0',
+        C_OUT => alu_carry_out,
+        FLAGS => alu_flags,
+        S     => alu_resultado
+    );
+
+    alu_leds <= alu_flags; -- Envia os flags da ALU para os LEDs
+
     -- Processo responsável pela atualização síncrona dos registradores
     REGISTERS_UPDATE: process(clk, reset)
     begin
@@ -118,3 +153,73 @@ begin
             current_state <= next_state; -- Transição para o próximo estado
         end if;
     end process;
+
+    -- Processo responsável por determinar o próximo estado e os sinais de controle
+    FSM_LOGIC: process(current_state, IR, alu_flags)
+    begin
+        next_state <= current_state; -- Valor padrão (permanece no mesmo estado)
+
+        -- Sinais de escrita e roteamento dos registradores
+        reg_write_en <= '0';
+        reg_dest     <= (others => '0');
+        reg_data_in  <= (others => '0');
+        
+        -- Enable dos registradores específicos
+        PC_en  <= '0';
+        IR_en  <= '0';
+        MAR_en <= '0';
+        MBR_en <= '0';
+
+        -- Valores a serem carregados nos Registradores Específicos
+        next_PC  <= (others => '0');
+        next_IR  <= (others => '0');
+        next_MAR <= (others => '0');
+        next_MBR <= (others => '0');
+        
+        -- Controles do Stack Pointer
+        SP_inc <= '0';
+        SP_dec <= '0';
+
+        -- Controles da ALU
+        alu_operando_A <= (others => '0');
+        alu_operando_B <= (others => '0');
+        alu_comando    <= (others => '0');
+
+        -- Controles da Memória RAM
+        ram_we   <= '0';
+        ram_addr <= (others => '0');
+        ram_dout <= (others => '0');
+
+        case current_state is
+            when FETCH =>
+                ram_addr <= PC; -- Envia o endereço do PC para a RAM
+                next_IR <= ram_din; -- O dado lido da RAM será o próximo IR
+                IR_en <= '1'; -- Habilita a escrita no IR
+                next_PC <= std_logic_vector(unsigned(PC) + 1); -- Incrementa o PC para a próxima instrução
+                PC_en <= '1'; -- Habilita a escrita no PC
+                next_state <= DECODE_1; -- Transição para o estado de Decodificação 1
+
+            when DECODE_1 =>
+                -- olhar para os bits mais significativos do IR para determinar o tipo de instrução
+                
+
+            when DECODE_2 =>
+                -- Lógica para o estado de Decodificação 2
+                -- [A ser implementada na Etapa 4]
+                null; -- Placeholder
+
+            when EXECUTE =>
+                -- Lógica para o estado de Execução
+                -- [A ser implementada na Etapa 4]
+                null; -- Placeholder
+
+            when WRITE_BACK =>
+                -- Lógica para o estado de Write Back
+                -- [A ser implementada na Etapa 4]
+                null; -- Placeholder
+
+            when others =>
+                next_state <= FETCH; -- Retorna ao estado inicial em caso de erro
+        end case;
+    end process;
+        
