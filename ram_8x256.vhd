@@ -21,17 +21,23 @@ architecture rtl of RAM_8x256 is
     -- Endereço de leitura registrado (atualizado na borda de descida do clock)
     signal read_address : std_logic_vector(7 downto 0) := (others => '0');
 
-    -- Inicialização com valores de teste (substitui a dependência do NASM)
-    -- Posição   0 => 0x12
-    -- Posição   1 => 0x34
-    -- Posição  12 => 0x56
-    -- Posição 255 => 0xAA  — I/O / LCD
-    -- Demais posições => 0x00
     signal ram : RAM_t := (
-        0   => x"12",
-        1   => x"34",
-        2  => x"56",
-        255 => x"AA",
+        0   => x"20",  -- inc A     -> 0010 00 00 -> A = 1                 
+        1   => x"20",  -- inc A     -> 0010 00 00 -> A = 2
+        2   => x"24",  -- inc B     -> 0010 01 00 -> B = 1
+        3   => x"01",  -- add A,B   -> 0000 00 01 -> A = 2 + 1 = 3 -> GREATER = 1
+        4   => x"11",  -- sub A,B   -> 0001 00 01 -> A = 3 - 1 = 2 
+        5   => x"21",  -- dec A     -> 0010 00 01 -> A = 1
+        6   => x"31",  -- and A,B   -> 0011 00 01 -> A = 1&1 = 1
+        7   => x"41",  -- or  A,B   -> 0100 00 01 -> A = 1|1 = 1
+        8   => x"61",  -- xor A,B   -> 0110 00 01 -> A = 1ˆ1 = 0 -> ZERO = 1  
+        9   => x"50",  -- not A     -> 0101 00 00 -> A = ~0 = 0xFF
+        10  => x"70",  -- rol A     -> 0111 00 00 -> A = 0xFF 
+        11  => x"71",  -- ror A     -> 0111 00 01 -> A = 0xFF  
+        12  => x"72",  -- lsl A     -> 0111 00 10 -> A = 0xFE -> CARRY = 1     
+        13  => x"73",  -- lsr A     -> 0111 00 11 -> A = 0x7F 
+        14  => x"F0",  -- halt      -> instrução que termina o programa
+        255 => x"AA",  -- 255 da RAM é reservada para comunicação com o LCD
         others => (others => '0')
     );
 
@@ -54,14 +60,3 @@ begin
     POS_255 <= ram(255);
 
 end architecture;
-
-
--- Substituir a inicialização da RAM pelo programa real
-    -- usar o NASM para montar um arquivo .asm e gerar os bytes que vão inicializar o signal ram. 
-    -- testinst.asm e o trabalho_final.asm 
-    -- ver direito como usar isso e como integrar ao codigo
--- Testar a leitura do programa 
-    -- verificar no testbench que a CPU consegue fazer fetch das instruções a partir da RAM com o programa real(NAMS)
--- Integrar RAM + CPU 
-    -- instanciar a RAM_8x256 dentro da CPU 
-    --  MAR -> ADDR, MBR -> DIN/DOUT e o sinal WE controlado pela FSM.
