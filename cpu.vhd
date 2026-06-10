@@ -19,6 +19,10 @@ entity CPU is {
 
 architecture Behavioral of CPU is
 
+    -- Declaração de estados da FSM
+    type state_type is (FETCH, DECODE_1, DECODE_2, EXECUTE, WRITE_BACK);
+    signal current_state, next_state : state_type := FETCH;
+
     -- Definição de tipo para o Banco de Registradores (4 registradores de 8 bits)
     type reg_array is array (0 to 3) of std_logic_vector(7 downto 0);
     
@@ -102,5 +106,15 @@ begin
                 SP <= std_logic_vector(unsigned(SP) - 1); -- PUSH decrementa [cite: 26]
             end if;
 
+        end if;
+    end process;
+
+    -- Processo responsável pela lógica de controle da FSM
+    FSM_UPDATE: process(clk, reset)
+    begin
+        if reset = '1' then
+            current_state <= FETCH; -- Estado inicial da máquina
+        elsif rising_edge(clk) then
+            current_state <= next_state; -- Transição para o próximo estado
         end if;
     end process;
