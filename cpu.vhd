@@ -62,6 +62,10 @@ architecture Behavioral of CPU is
     signal SP_inc : std_logic := '0'; -- Usado pelo comando POP
     signal SP_dec : std_logic := '0'; -- Usado pelo comando PUSH
 
+    -- Registrador interno para retenção e persistência das flags nos LEDs
+    signal flags_reg    : std_logic_vector(4 downto 0) := (others => '0');
+    signal update_flags : std_logic := '0';
+
     -- Componente ALU
     component alu is 
         port( A     : in  STD_LOGIC_VECTOR(7 downto 0);
@@ -94,54 +98,61 @@ begin
         S     => alu_resultado
     );
 
-    alu_leds <= alu_flags; -- Envia os flags da ALU para os LEDs
+    current_ir <= IR;          -- Espelha permanentemente o IR para leitura do LCD
+    alu_leds   <= flags_reg;   -- Exibe nos LEDs as flags retidas de forma síncrona
+
+    alu_operando_A <= REG(to_integer(unsigned(IR(3 downto 2)))); -- Rx
+    alu_operando_B <= REG(to_integer(unsigned(IR(1 downto 0)))); -- Ry
+    alu_comando    <= IR(7 downto 4);                            -- OpCode define a operação
 
     -- Processo responsável pela atualização síncrona dos registradores
     REGISTERS_UPDATE: process(clk, reset)
-    begin
-        if reset = '1' then
-            -- Condição de Reset Assíncrono (zerar a máquina)
-            PC  <= (others => '0');
-            IR  <= (others => '0');
-            MAR <= (others => '0');
-            MBR <= (others => '0');
-            SP  <= x"FE"; -- Reinicializa o SP para 254
-            REG <= (others => (others => '0'));
-            
-        elsif rising_edge(clk) then
-            
-            -- 1. Atualização do Banco de Registradores (A, B, C, D)
-            if reg_write_en = '1' then
-                -- O índice (reg_dest) vem da decodificação da instrução (Rx ou Ry)
-                REG(to_integer(unsigned(reg_dest))) <= reg_data_in;
-            end if;
+        begin
+            if reset = '1' then
+                PC        <= (others => '0');
+                IR        <= (others => '0');
+                MAR       <= (others => '0');
+                MBR       <= (others => '0');
+                SP        <= x"FE"; -- Reinicializa o Stack Pointer para 254
+                REG       <= (others => (others => '0'));
+                flags_reg <= (others => '0');
+                
+            elsif rising_edge(clk) then
+                
+                -- Atualização do Banco de Registradores Gerais
+                if reg_write_en = '1' then
+                    REG(to_integer(unsigned(reg_dest))) <= reg_data_in;
+                end if;
 
-            -- 2. Atualização dos Registradores Específicos
-            -- A FSM da Etapa 4 irá controlar esses enables ('_en')
-            
-            if PC_en = '1' then
-                PC <= next_PC; -- next_PC pode ser PC+1 ou endereço de salto
-            end if;
+                -- Atualizações controladas por enables da Unidade de Controle
+                if PC_en = '1' then
+                    PC <= next_PC;
+                end if;
 
-            if IR_en = '1' then
-                IR <= next_IR; -- Recebe o dado lido da memória na fase de Fetch
-            end if;
+                if IR_en = '1' then
+                    IR <= next_IR;
+                end if;
 
-            if MAR_en = '1' then
-                MAR <= next_MAR; -- Recebe o endereço para acessar a memória
-            end if;
+                if MAR_en = '1' then
+                    MAR <= next_MAR;
+                end if;
 
-            if MBR_en = '1' then
-                MBR <= next_MBR; -- Recebe o dado indo/vindo da memória
-            end if;
-            
-            if SP_inc = '1' then
-                SP <= std_logic_vector(unsigned(SP) + 1); -- POP incrementa [cite: 27]
-            elsif SP_dec = '1' then
-                SP <= std_logic_vector(unsigned(SP) - 1); -- PUSH decrementa [cite: 26]
-            end if;
+                if MBR_en = '1' then
+                    MBR <= next_MBR;
+                end if;
+                
+                -- Controle de incremento/decremento da pilha
+                if SP_inc = '1' then
+                    SP <= std_logic_vector(unsigned(SP) + 1);
+                elsif SP_dec = '1' then
+                    SP <= std_logic_vector(unsigned(SP) - 1);
+                end if;
 
-        end if;
+                -- Latch síncrono das flags da ALU (Garante a persistência requisitada)
+                if update_flags = '1' then
+                    flags_reg <= alu_flags;
+                end if;
+            end if;
     end process;
 
     -- Processo responsável pela lógica de controle da FSM
@@ -155,9 +166,10 @@ begin
     end process;
 
     -- Processo responsável por determinar o próximo estado e os sinais de controle
-    FSM_LOGIC: process(current_state, IR, alu_flags)
+    FSM_LOGIC: process(current_state, IR, alu_flags, MBR, PC, REG, ram_din)
     begin
         next_state <= current_state; -- Valor padrão (permanece no mesmo estado)
+        update_flags <= '0';
 
         -- Sinais de escrita e roteamento dos registradores
         reg_write_en <= '0';
@@ -180,11 +192,6 @@ begin
         SP_inc <= '0';
         SP_dec <= '0';
 
-        -- Controles da ALU
-        alu_operando_A <= (others => '0');
-        alu_operando_B <= (others => '0');
-        alu_comando    <= (others => '0');
-
         -- Controles da Memória RAM
         ram_we   <= '0';
         ram_addr <= (others => '0');
@@ -200,23 +207,75 @@ begin
                 next_state <= DECODE_1; -- Transição para o estado de Decodificação 1
 
             when DECODE_1 =>
-                -- olhar para os bits mais significativos do IR para determinar o tipo de instrução
-                
+                if (IR(7 downto 4) = "1000" and (IR(1 downto 0) = "10" or IR(1 downto 0) = "11")) or 
+                   (IR(7 downto 4) = "1100" and IR(3 downto 0) = "0000") then
+                    
+                    next_state <= DECODE_2;   -- Precisa ir na RAM buscar o complemento (0x--)
+                else
+                    next_state <= EXECUTE;    -- Instrução de 1 byte, pode executar direto
+                end if;
 
             when DECODE_2 =>
-                -- Lógica para o estado de Decodificação 2
-                -- [A ser implementada na Etapa 4]
-                null; -- Placeholder
+                ram_addr   <= PC;        -- O PC já aponta para a posição do dado/endereço (0x--) 
+                next_MBR   <= ram_din;   -- Guarda o valor lido temporariamente no MBR
+                MBR_en     <= '1';
+                
+                -- Incrementa o PC novamente para apontar para a próxima instrução real do programa
+                next_PC    <= std_logic_vector(unsigned(PC) + 1);
+                PC_en      <= '1';
+                
+                next_state <= EXECUTE;
 
             when EXECUTE =>
-                -- Lógica para o estado de Execução
-                -- [A ser implementada na Etapa 4]
-                null; -- Placeholder
+                -- ADD Rx, Ry (OpCode: 0000)
+                if IR(7 downto 4) = "0000" then
+                    update_flags <= '1';        -- Comanda o salvamento das flags geradas nesta instrução
+                    next_state   <= WRITE_BACK;
+
+                -- JMP 0x-- (OpCode: 1100 0000)
+                elsif IR(7 downto 4) = "1100" and IR(3 downto 0) = "0000" then
+                    next_PC      <= MBR;        -- Carrega o endereço alvo guardado no MBR para o PC
+                    PC_en        <= '1';
+                    next_state   <= FETCH;
+
+                -- ST Rx, 0x-- (OpCode: 1000 xx 11)
+                elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "11" then
+                    ram_addr     <= MBR;        -- Destino da escrita fornecido pelo MBR
+                    ram_dout     <= REG(to_integer(unsigned(IR(3 downto 2)))); -- Dado lido do registrador Rx
+                    ram_we       <= '1';        -- Dispara pulso de escrita na RAM
+                    next_state   <= FETCH;
+
+                else
+                    next_state   <= FETCH;      -- Prevenção para instruções ainda não mapeadas
+                end if;
 
             when WRITE_BACK =>
-                -- Lógica para o estado de Write Back
-                -- [A ser implementada na Etapa 4]
-                null; -- Placeholder
+                -- Ativação do Enable de escrita e definição do destino do dado a ser salvo
+                reg_write_en <= '1';
+                reg_dest     <= IR(3 downto 2); -- Na sua arquitetura, Rx fica sempre nestes bits 
+
+                -- Condição 1: A instrução foi uma soma (ADD) ou subtração (SUB) 
+                if IR(7 downto 4) = "0000" or IR(7 downto 4) = "0001" then 
+                    reg_data_in <= alu_resultado;
+
+                -- Condição 2: A instrução foi um Load da RAM (LDR Rx, [Ry] -> OpCode 1001) 
+                elsif IR(7 downto 4) = "1001" then
+                    -- A RAM já recebeu o endereço no estado EXECUTE e agora está respondendo
+                    reg_data_in <= ram_din;
+
+                -- Condição 3: A instrução foi um Move (MOV Rx, Ry -> OpCode 1011) 
+                elsif IR(7 downto 4) = "1011" then
+                    -- Copia o dado diretamente de Ry
+                    reg_data_in <= REG(to_integer(unsigned(IR(1 downto 0)))); 
+
+                -- Condição 4: A instrução foi um Load imediato (LD Rx, 0x-- -> OpCode 1000 Rx 10) 
+                elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "10" then
+                    -- O valor 0x-- foi lido da RAM no estado DECODE_2 e aguardou no MBR
+                    reg_data_in <= MBR;
+                    
+                end if;
+                                
+                next_state <= FETCH; -- Fim do ciclo de instrução. Busca o próximo comando.
 
             when others =>
                 next_state <= FETCH; -- Retorna ao estado inicial em caso de erro
