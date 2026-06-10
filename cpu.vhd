@@ -2,6 +2,21 @@ LIBRARY ieee;
 USE ieee.std_logic_1164.ALL;
 USE ieee.numeric_std.ALL;
 
+-- Declaração da Entidade
+entity CPU is {
+    clk   : in std_logic;
+    reset : in std_logic;
+
+    -- Sinais controlados pela FSM
+    ram_addr   : out std_logic_vector(7 downto 0); -- Endereço enviado para a RAM
+    ram_din    : in  std_logic_vector(7 downto 0); -- Dado lido vindo da RAM
+    ram_dout   : out std_logic_vector(7 downto 0); -- Dado enviado para escrita na RAM
+    ram_we     : out std_logic;                    -- Habilitação de escrita na RAM (Write Enable)
+    
+    current_ir : out std_logic_vector(7 downto 0); -- Envia o IR atual para decodificação do LCD
+    alu_leds   : out std_logic_vector(4 downto 0)
+}
+
 architecture Behavioral of CPU is
 
     -- Definição de tipo para o Banco de Registradores (4 registradores de 8 bits)
