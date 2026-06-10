@@ -30,7 +30,7 @@ architecture rtl of RAM_8x256 is
     signal ram : RAM_t := (
         0   => x"12",
         1   => x"34",
-        12  => x"56",
+        2  => x"56",
         255 => x"AA",
         others => (others => '0')
     );
