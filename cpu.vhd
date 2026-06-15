@@ -306,7 +306,7 @@ begin
                     MAR_en     <= '1';
                     next_state <= FETCH;
 
-                -- MOV Rx, Ry (1011)
+                -- MOV Rx, Ry (1011) - Deve ir para o WRITE_BACK para salvar no registrador
                 elsif IR(7 downto 4) = "1011" then
                     next_state <= WRITE_BACK;
 
