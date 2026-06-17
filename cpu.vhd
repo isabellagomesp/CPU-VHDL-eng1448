@@ -273,10 +273,8 @@ begin
                     update_flags <= '1';    
                     next_state   <= WRITE_BACK;
 
-                -- LDR Rx, [Ry] (1001) - BUG 2 RESOLVIDO
+                -- LDR Rx, [Ry] (1001)
                 elsif IR(7 downto 4) = "1001" then
-                    next_MAR   <= PC;
-                    MAR_en     <= '1';
                     next_state <= WRITE_BACK;
 
                 -- POP Rx (1000 xx 01)
