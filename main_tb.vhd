@@ -27,22 +27,24 @@ begin
     -- Clock de 10 ns (borda de subida em 5, 15, 25, ...)
     CLK <= not CLK after 5 ns;
 
+    -- Legenda dos sinais observáveis:
+    --   current_ir : opcode da instrução em execução (carregado no FETCH)
+    --   alu_leds   : flags_reg(4 downto 0) = CARRY | EQUAL | SMALLER | GREATER | ZERO
+
+    -- Número de ciclos por tipo de instrução:
+    --   ALU / MOV / LDR (1 byte): 4 ciclos  FETCH→D1→EXECUTE→WRITE_BACK
+    --   LD  #imm        (2 bytes): 5 ciclos  FETCH→D1→D2→EXECUTE→WRITE_BACK
+    --   ST  addr        (2 bytes): 4 ciclos  FETCH→D1→D2→EXECUTE
+
     process
     begin
-        -- RESET 
         RESET <= '1';
         wait for 20 ns;
         RESET <= '0';
 
-        -- Cada instrução ALU de 1 byte passa por 4 bordas de subida:
-        --   FETCH → DECODE_1 → EXECUTE → WRITE_BACK
-
-        -- O que verificamos:
-        --   • Em FETCH   (+1ns): current_ir deve mostrar o opcode correto
-        --   • Em EXECUTE (+1ns): alu_leds deve mostrar as flags corretas
-
-        -- alu_leds = flags_reg(4 downto 0)
-        --   bit4 = CARRY  bit = EQUAL  bit2 = SMALLER  bit1 = GREATER  bit0 = ZERO
+        -- ════════════════════════════════════════════════════════════
+        -- BLOCO 1 — Instruções ALU (endereços 0–13)
+        -- ════════════════════════════════════════════════════════════
 
         -- Instrução 0: inc A 
         -- opcode 0010 00 00 = 0x20
@@ -154,6 +156,53 @@ begin
         wait until rising_edge(CLK);  -- DECODE_1
         wait until rising_edge(CLK); wait for 1 ns;  -- EXECUTE: flags 
         wait until rising_edge(CLK);  -- WRITE_BACK
+
+        -- ════════════════════════════════════════════════════════════
+        -- BLOCO 2 — Instruções de memória (endereços 14–23)
+        -- Estado inicial: A=0x7F, B=1
+        -- Estado esperado ao final: A=42, B=42, C=42, RAM[0x40]=42
+        -- ════════════════════════════════════════════════════════════
+
+        -- ── Instrução 14+15: LD A, #42  (0x83 0x2A)  — 5 ciclos  A=42
+        wait until rising_edge(CLK); wait for 1 ns;  -- FETCH    : current_ir=0x83
+        wait until rising_edge(CLK);                 -- DECODE_1 : busca imm (0x2A)
+        wait until rising_edge(CLK);                 -- DECODE_2 : MBR=42
+        wait until rising_edge(CLK);                 -- EXECUTE
+        wait until rising_edge(CLK);                 -- WRITE_BACK: A=42
+
+        -- ── Instrução 16+17: ST A, 0x40  (0x82 0x40)  — 4 ciclos  RAM[0x40]=42
+        wait until rising_edge(CLK); wait for 1 ns;  -- FETCH    : current_ir=0x82
+        wait until rising_edge(CLK);                 -- DECODE_1 : busca addr (0x40)
+        wait until rising_edge(CLK);                 -- DECODE_2 : MAR=0x40, MBR=42
+        wait until rising_edge(CLK);                 -- EXECUTE  : ram_we=1
+
+        -- ── Instrução 18+19: LD B, #0x40  (0x87 0x40)  — 5 ciclos  B=0x40
+        wait until rising_edge(CLK); wait for 1 ns;  -- FETCH    : current_ir=0x87
+        wait until rising_edge(CLK);                 -- DECODE_1
+        wait until rising_edge(CLK);                 -- DECODE_2 : MBR=0x40
+        wait until rising_edge(CLK);                 -- EXECUTE
+        wait until rising_edge(CLK);                 -- WRITE_BACK: B=0x40
+
+        -- ── Instrução 20: LDR A, [B]  (0x91)  — 4 ciclos  A=RAM[0x40]=42
+        wait until rising_edge(CLK); wait for 1 ns;  -- FETCH    : current_ir=0x91
+        wait until rising_edge(CLK);                 -- DECODE_1 : MAR=REG[B]=0x40
+        wait until rising_edge(CLK);                 -- EXECUTE  : RAM lê 0x40
+        wait until rising_edge(CLK);                 -- WRITE_BACK: A=42
+
+        -- ── Instrução 21: MOV B, A  (0xB4)  — 4 ciclos  B=42
+        wait until rising_edge(CLK); wait for 1 ns;  -- FETCH    : current_ir=0xB4
+        wait until rising_edge(CLK);                 -- DECODE_1
+        wait until rising_edge(CLK);                 -- EXECUTE
+        wait until rising_edge(CLK);                 -- WRITE_BACK: B=42
+
+        -- ── Instrução 22: MOV C, B  (0xB9)  — 4 ciclos  C=42
+        wait until rising_edge(CLK); wait for 1 ns;  -- FETCH    : current_ir=0xB9
+        wait until rising_edge(CLK);                 -- DECODE_1
+        wait until rising_edge(CLK);                 -- EXECUTE
+        wait until rising_edge(CLK);                 -- WRITE_BACK: C=42
+
+        -- ── HALT (0xF0)
+        wait until rising_edge(CLK); wait for 1 ns;  -- FETCH: current_ir=0xF0
 
         wait;
     end process;
