@@ -27,7 +27,6 @@ end CPU;
 -- ============================================================================
 architecture Behavioral of CPU is
 
-    -- Declaração dos 5 estados originais
     type state_type is (FETCH, DECODE_1, DECODE_2, EXECUTE, WRITE_BACK);
     signal current_state, next_state : state_type := FETCH;
 
@@ -92,9 +91,6 @@ begin
     alu_operando_A <= REG(to_integer(unsigned(IR(3 downto 2)))); 
     alu_operando_B <= REG(to_integer(unsigned(IR(1 downto 0)))); 
 
-    -- ========================================================================
-    -- PROCESSO COMBINACIONAL: TRADUTOR DO COMANDO DA ALU (Correção do Erro 1)
-    -- ========================================================================
     ALU_CMD_DECODER: process(IR)
     begin
         case IR(7 downto 4) is
@@ -119,7 +115,6 @@ begin
         end case;
     end process;
 
-    -- Instanciação da ALU
     U_ALU: alu port map(
         A     => alu_operando_A,
         B     => alu_operando_B,
@@ -181,9 +176,8 @@ begin
     -- ========================================================================
     -- PROCESSO COMBINACIONAL: LÓGICA DE CONTROLE DA FSM
     -- ========================================================================
-    FSM_LOGIC: process(current_state, IR, alu_flags, MBR, PC, MAR, REG, ram_din)
+    FSM_LOGIC: process(current_state, IR, alu_flags, MBR, PC, MAR, REG, ram_din, SP)
     begin
-        -- Valores Padrão Absolutos
         next_state   <= current_state; 
         update_flags <= '0';
         ram_we       <= '0'; 
@@ -205,7 +199,6 @@ begin
         SP_inc <= '0';
         SP_dec <= '0';
 
-        -- Máquina de Estados
         case current_state is
             
             when FETCH =>
@@ -216,19 +209,49 @@ begin
                 next_state <= DECODE_1;
 
             when DECODE_1 =>
+                -- Instruções de 2 bytes (LD imed, ST imed, JMP)
                 if (IR(7 downto 4) = "1000" and (IR(1 downto 0) = "10" or IR(1 downto 0) = "11")) or 
                    (IR(7 downto 4) = "1100" and IR(3 downto 0) = "0000") then
-                    
                     next_MAR   <= PC;
                     MAR_en     <= '1';
                     next_state <= DECODE_2; 
+                
+                -- STR Rx, [Ry] (OpCode 1010)
+                elsif IR(7 downto 4) = "1010" then
+                    next_MAR   <= REG(to_integer(unsigned(IR(1 downto 0)))); -- Endereço que está no Ry
+                    MAR_en     <= '1';
+                    next_MBR   <= REG(to_integer(unsigned(IR(3 downto 2)))); -- Dado que está no Rx
+                    MBR_en     <= '1';
+                    next_state <= EXECUTE;
+
+                -- LDR Rx, [Ry] (OpCode 1001)
+                elsif IR(7 downto 4) = "1001" then
+                    next_MAR   <= REG(to_integer(unsigned(IR(1 downto 0)))); -- Endereço que está no Ry
+                    MAR_en     <= '1';
+                    next_state <= EXECUTE;
+
+                -- PUSH Rx (OpCode 1000 xx 00)
+                elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "00" then
+                    next_MAR   <= SP; -- O SP atual aponta para o topo livre da pilha
+                    MAR_en     <= '1';
+                    next_MBR   <= REG(to_integer(unsigned(IR(3 downto 2)))); -- Dado de Rx
+                    MBR_en     <= '1';
+                    next_state <= EXECUTE;
+
+                -- POP Rx (OpCode 1000 xx 01)
+                elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "01" then
+                    -- Como o SP aponta para a posição livre mais abaixo, o topo ocupado é SP + 1
+                    next_MAR   <= std_logic_vector(unsigned(SP) + 1); 
+                    MAR_en     <= '1';
+                    next_state <= EXECUTE;
+
+                -- Demais instruções 1 byte (ALU, MOV, etc)
                 else
                     next_state <= EXECUTE;
                 end if;
 
             when DECODE_2 =>
-                
-                -- Se for ST Rx, 0x-- (OpCode: 1000 xx 10) - CORREÇÃO DE LD/ST
+                -- ST Rx, 0x-- 
                 if IR(7 downto 4) = "1000" and IR(1 downto 0) = "10" then
                     next_MAR <= ram_din; 
                     MAR_en   <= '1';
@@ -245,21 +268,38 @@ begin
                 next_state <= EXECUTE;
 
             when EXECUTE =>
-                -- Qualquer instrução ALU (OpCodes 0000 a 0111) - CORREÇÃO DE FLAGS E WRITE_BACK
+                -- Qualquer instrução ALU (OpCodes 0000 a 0111)
                 if IR(7 downto 4) <= "0111" then
                     update_flags <= '1';    
                     next_state   <= WRITE_BACK;
 
+                -- LDR Rx, [Ry] (1001) e POP Rx (1000 xx 01)
+                elsif IR(7 downto 4) = "1001" or (IR(7 downto 4) = "1000" and IR(1 downto 0) = "01") then
+                    if IR(7 downto 4) = "1000" and IR(1 downto 0) = "01" then
+                        SP_inc <= '1'; -- POP: Libera espaço na pilha incrementando o SP 
+                    end if;
+                    next_state <= WRITE_BACK;
+
+                -- STR Rx, [Ry] (1010) e PUSH Rx (1000 xx 00)
+                elsif IR(7 downto 4) = "1010" or (IR(7 downto 4) = "1000" and IR(1 downto 0) = "00") then
+                    ram_we     <= '1'; -- Executa a escrita na memória
+                    if IR(7 downto 4) = "1000" and IR(1 downto 0) = "00" then
+                        SP_dec <= '1'; -- PUSH: Ocupa espaço decrementando o SP 
+                    end if;
+                    
+                    next_MAR   <= PC;
+                    MAR_en     <= '1';
+                    next_state <= FETCH;
+
                 -- JMP 0x-- (OpCode: 1100 0000)
                 elsif IR(7 downto 4) = "1100" and IR(3 downto 0) = "0000" then
-                    next_PC      <= MBR;    
-                    PC_en        <= '1';
-                    
-                    next_MAR     <= MBR; 
-                    MAR_en       <= '1';
-                    next_state   <= FETCH;
+                    next_PC    <= MBR;    
+                    PC_en      <= '1';
+                    next_MAR   <= MBR; 
+                    MAR_en     <= '1';
+                    next_state <= FETCH;
 
-                -- ST Rx, 0x-- (OpCode: 1000 xx 10) - CORREÇÃO DE LD/ST
+                -- ST Rx, 0x-- (OpCode: 1000 xx 10)
                 elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "10" then
                     ram_we     <= '1'; 
                     next_MAR   <= PC;
@@ -271,28 +311,28 @@ begin
                     next_state <= WRITE_BACK;
 
                 else
-                    next_MAR     <= PC;
-                    MAR_en       <= '1';
-                    next_state   <= FETCH; 
+                    next_MAR   <= PC;
+                    MAR_en     <= '1';
+                    next_state <= FETCH; 
                 end if;
 
             when WRITE_BACK =>
                 reg_write_en <= '1';
                 reg_dest     <= IR(3 downto 2); 
 
-                -- Qualquer instrução ALU (OpCodes 0000 a 0111) - CORREÇÃO DE GRAVAÇÃO
+                -- Qualquer instrução ALU (OpCodes 0000 a 0111)
                 if IR(7 downto 4) <= "0111" then 
                     reg_data_in <= alu_resultado;
 
-                -- LDR Rx, [Ry]
-                elsif IR(7 downto 4) = "1001" then
-                    reg_data_in <= ram_din;
+                -- LDR Rx, [Ry] (1001) e POP Rx (1000 xx 01)
+                elsif IR(7 downto 4) = "1001" or (IR(7 downto 4) = "1000" and IR(1 downto 0) = "01") then
+                    reg_data_in <= ram_din; -- O dado já foi lido da RAM durante o estado EXECUTE
 
-                -- MOV Rx, Ry
+                -- MOV Rx, Ry (1011)
                 elsif IR(7 downto 4) = "1011" then
                     reg_data_in <= REG(to_integer(unsigned(IR(1 downto 0)))); 
 
-                -- LD Rx, 0x-- (OpCode 1000 xx 11) - CORREÇÃO DE LD/ST
+                -- LD Rx, 0x-- (1000 xx 11)
                 elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "11" then
                     reg_data_in <= MBR;
                 end if;
