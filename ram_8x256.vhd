@@ -22,6 +22,9 @@ architecture rtl of RAM_8x256 is
     signal read_address : std_logic_vector(7 downto 0) := (others => '0');
 
     signal ram : RAM_t := (
+        -- ── Bloco 1: instruções ALU (endereços 0–13) ─────────────────────────
+        -- Estado dos registradores ao final deste bloco:
+        --   A = 0x7F,  B = 1
         0   => x"20",  -- inc A     -> 0010 00 00 -> A = 1                 
         1   => x"20",  -- inc A     -> 0010 00 00 -> A = 2
         2   => x"24",  -- inc B     -> 0010 01 00 -> B = 1
@@ -36,8 +39,22 @@ architecture rtl of RAM_8x256 is
         11  => x"71",  -- ror A     -> 0111 00 01 -> A = 0xFF  
         12  => x"72",  -- lsl A     -> 0111 00 10 -> A = 0xFE -> CARRY = 1     
         13  => x"73",  -- lsr A     -> 0111 00 11 -> A = 0x7F 
-        14  => x"F0",  -- halt      -> instrução que termina o programa
-        255 => x"AA",  -- 255 da RAM é reservada para comunicação com o LCD
+
+        -- ── Bloco 2: instruções de memória (endereços 14–23) ─────────────────
+        -- Estado esperado ao final: A=42, B=42, C=42, RAM[0x40]=42
+        14  => x"83",  -- LD  A, #42     (1000 00 11) byte 1/2
+        15  => x"2A",  --                 immediate = 42       -> A = 42
+        16  => x"82",  -- ST  A, 0x40   (1000 00 10) byte 1/2
+        17  => x"40",  --                 addr = 0x40          -> RAM[0x40] = 42
+        18  => x"87",  -- LD  B, #0x40  (1000 01 11) byte 1/2
+        19  => x"40",  --                 immediate = 0x40     -> B = 0x40
+        20  => x"91",  -- LDR A, [B]    (1001 00 01)           -> A = RAM[0x40] = 42
+        21  => x"B4",  -- MOV B, A      (1011 01 00)           -> B = 42
+        22  => x"B9",  -- MOV C, B      (1011 10 01)           -> C = 42
+        23  => x"F0",  -- HALT
+
+        16#40# => x"2A",  -- posição 0x40: valor inicial para LDR ler (sobrescrito pelo ST)
+        255    => x"AA",  -- reservada para LCD
         others => (others => '0')
     );
 
