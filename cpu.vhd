@@ -224,7 +224,7 @@ begin
                     MBR_en     <= '1';
                     next_state <= EXECUTE;
 
-                -- LDR Rx, [Ry] (OpCode 1001)
+                -- LDR Rx, [Ry] (OpCode 1001) - Bug 2 Parcial (Já estava correto no seu código!)
                 elsif IR(7 downto 4) = "1001" then
                     next_MAR   <= REG(to_integer(unsigned(IR(1 downto 0)))); -- Endereço que está no Ry
                     MAR_en     <= '1';
@@ -273,11 +273,21 @@ begin
                     update_flags <= '1';    
                     next_state   <= WRITE_BACK;
 
-                -- LDR Rx, [Ry] (1001) e POP Rx (1000 xx 01)
-                elsif IR(7 downto 4) = "1001" or (IR(7 downto 4) = "1000" and IR(1 downto 0) = "01") then
-                    if IR(7 downto 4) = "1000" and IR(1 downto 0) = "01" then
-                        SP_inc <= '1'; -- POP: Libera espaço na pilha incrementando o SP 
-                    end if;
+                -- LDR Rx, [Ry] (1001) - BUG 2 RESOLVIDO
+                elsif IR(7 downto 4) = "1001" then
+                    next_MAR   <= PC;
+                    MAR_en     <= '1';
+                    next_state <= WRITE_BACK;
+
+                -- POP Rx (1000 xx 01)
+                elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "01" then
+                    SP_inc     <= '1'; -- POP: Libera espaço na pilha incrementando o SP 
+                    next_state <= WRITE_BACK;
+
+                -- LD Rx, #imm (OpCode: 1000 xx 11) - BUG 1 RESOLVIDO
+                elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "11" then
+                    next_MAR   <= PC;
+                    MAR_en     <= '1';
                     next_state <= WRITE_BACK;
 
                 -- STR Rx, [Ry] (1010) e PUSH Rx (1000 xx 00)
