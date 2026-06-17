@@ -261,11 +261,14 @@ begin
 
                 -- ST Rx, 0x-- (OpCode: 1000 xx 10) - CORREÇÃO DE LD/ST
                 elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "10" then
-                    ram_we       <= '1'; 
-                    
-                    next_MAR     <= PC;
-                    MAR_en       <= '1';
-                    next_state   <= FETCH;
+                    ram_we     <= '1'; 
+                    next_MAR   <= PC;
+                    MAR_en     <= '1';
+                    next_state <= FETCH;
+
+                -- MOV Rx, Ry (1011) - Deve ir para o WRITE_BACK para salvar no registrador
+                elsif IR(7 downto 4) = "1011" then
+                    next_state <= WRITE_BACK;
 
                 else
                     next_MAR     <= PC;
