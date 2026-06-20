@@ -317,32 +317,30 @@ begin
                     update_flags <= '1';    
                     next_state   <= WRITE_BACK;
 
-                -- Classe: Acesso à Memória (Leitura - LDR / POP)
-                elsif IR(7 downto 4) = "1001" or (IR(7 downto 4) = "1000" and IR(1 downto 0) = "01") then
-                    if IR(7 downto 4) = "1000" and IR(1 downto 0) = "01" then
-                        SP_inc <= '1'; -- POP: Liberação de espaço na pilha
-                    end if;
-                -- LDR Rx, [Ry] (1001)
+                -- Classe: Acesso à Memória (Leitura - LDR)
                 elsif IR(7 downto 4) = "1001" then
                     next_state <= WRITE_BACK;
 
-                -- POP Rx (1000 xx 01)
+                -- Classe: Acesso à Memória (Leitura - POP)
                 elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "01" then
-                    SP_inc     <= '1'; -- POP: Libera espaço na pilha incrementando o SP 
+                    SP_inc     <= '1'; -- POP: Liberação de espaço na pilha
                     next_state <= WRITE_BACK;
 
-                -- LD Rx, #imm (OpCode: 1000 xx 11) - BUG 1 RESOLVIDO
+                -- Classe: Acesso à Memória (Leitura - LD Imediato)
                 elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "11" then
+                    next_state <= WRITE_BACK;
+
+                -- Classe: Acesso à Memória (Escrita - STR)
+                elsif IR(7 downto 4) = "1010" then
+                    ram_we     <= '1'; 
                     next_MAR   <= PC;
                     MAR_en     <= '1';
-                    next_state <= WRITE_BACK;
-
-                -- Classe: Acesso à Memória (Escrita - STR / PUSH)
-                elsif IR(7 downto 4) = "1010" or (IR(7 downto 4) = "1000" and IR(1 downto 0) = "00") then
+                    next_state <= FETCH;
+                    
+                -- Classe: Acesso à Memória (Escrita - PUSH)
+                elsif IR(7 downto 4) = "1000" and IR(1 downto 0) = "00" then
                     ram_we     <= '1'; 
-                    if IR(7 downto 4) = "1000" and IR(1 downto 0) = "00" then
-                        SP_dec <= '1'; -- PUSH: Alocação de espaço na pilha
-                    end if;
+                    SP_dec     <= '1'; -- PUSH: Alocação de espaço na pilha
                     next_MAR   <= PC;
                     MAR_en     <= '1';
                     next_state <= FETCH;
