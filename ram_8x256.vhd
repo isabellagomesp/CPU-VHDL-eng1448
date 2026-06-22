@@ -75,10 +75,79 @@ architecture rtl of RAM_8x256 is
         54  => x"CE",  -- BZ  D         -> 1100 11 10 -> ZERO=1 -> PC=REG[D]=36
         55  => x"24",  -- inc B         -> 0010 01 00 -> pulado pelo BZ
         56  => x"24",  -- inc B         -> 0010 01 00 -> pulado pelo BZ
-        57  => x"CF",  -- BNZ D         -> 1100 11 11 -> ZERO=1 -> cai p/ 37
-        58  => x"F0",  -- HALT          -> 1111 0000 -> trava a CPU
+        57  => x"CF",  -- BNZ D         -> 1100 11 11 -> ZERO=1 -> NAO tomado -> cai p/ 58
+        58  => x"C0",  -- JMP 0x80      -> 1100 0000 -> byte 1/2 (salta p/ o Bloco 4)
+        59  => x"80",  --                  alvo = 128 (0x80) -> pula o vao 60-127
 
-        --16#40# => x"2A",  -- posição 0x40: valor inicial para LDR ler (sobrescrito pelo ST)
+             -- -- Bloco 4: BCS, BCC, BEQ, BNEQ, BGT, BLT (enderecos 128-180) ----------
+        -- Um teste por instrucao: branch TOMADO pula um TRAP logo em seguida.
+        -- Flags ALU: (4)=CARRY (3)=EQUAL (2)=SMALLER (1)=GREATER (0)=ZERO
+
+        -- == BCS: CARRY=1 ==========================================
+        128 => x"83",  -- LD A,#0xFF
+        129 => x"FF",
+        130 => x"87",  -- LD B,#1
+        131 => x"01",
+        132 => x"01",  -- add A,B   -> A=0x00, CARRY=1
+        133 => x"8F",  -- LD D,#137
+        134 => x"89",  --   137 = 0x89
+        135 => x"DC",  -- BCS D     -> CARRY=1 -> TOMADO -> 137 (pula trap 136)
+        136 => x"20",  -- deve ser pulado
+
+        -- == BCC: CARRY=0 ==========================================
+        137 => x"87",  -- LD B,#1
+        138 => x"01",
+        139 => x"01",  -- add A,B   -> A=1, CARRY=0  (A=0 da instrucao anterior)
+        140 => x"8F",  -- LD D,#144
+        141 => x"90",  --   144 = 0x90
+        142 => x"DD",  -- BCC D     -> CARRY=0 -> TOMADO -> 144 (pula trap 143)
+        143 => x"20",  -- deve ser pulado
+
+        -- == BEQ: EQUAL=1 -> TOMADO ==========================================
+        144 => x"83",  -- LD A,#5
+        145 => x"05",
+        146 => x"87",  -- LD B,#5
+        147 => x"05",
+        148 => x"11",  -- sub A,B   -> A=0, EQUAL=1, ZERO=1
+        149 => x"8F",  -- LD D,#153
+        150 => x"99",  --   153 = 0x99
+        151 => x"DE",  -- BEQ D     -> EQUAL=1 -> TOMADO -> 153 (pula trap 152)
+        152 => x"20",  -- deve ser pulado
+
+        -- == BNEQ: EQUAL=0 =========================================
+        153 => x"83",  -- LD A,#7
+        154 => x"07",
+        155 => x"87",  -- LD B,#3
+        156 => x"03",
+        157 => x"11",  -- sub A,B   -> A=4, EQUAL=0, GREATER=1
+        158 => x"8F",  -- LD D,#162
+        159 => x"A2",  --   162 = 0xA2
+        160 => x"DF",  -- BNEQ D    -> EQUAL=0 -> TOMADO -> 162 (pula trap 161)
+        161 => x"20",  -- TRAP (deve ser pulado)
+
+        -- == BGT: GREATER=1 ========================================
+        162 => x"83",  -- LD A,#9
+        163 => x"09",
+        164 => x"87",  -- LD B,#2
+        165 => x"02",
+        166 => x"11",  -- sub A,B   -> A=7, GREATER=1, SMALLER=0
+        167 => x"8F",  -- LD D,#171
+        168 => x"AB",  --   171 = 0xAB
+        169 => x"EC",  -- BGT D     -> GREATER=1 -> TOMADO -> 171 (pula trap 170)
+        170 => x"20",  -- deve ser pulado
+
+        -- == BLT: SMALLER=1 ========================================
+        171 => x"83",  -- LD A,#2
+        172 => x"02",
+        173 => x"87",  -- LD B,#9
+        174 => x"09",
+        175 => x"11",  -- sub A,B   -> A=0xF9, SMALLER=1, GREATER=0
+        176 => x"8F",  -- LD D,#180
+        177 => x"B4",  --   180 = 0xB4
+        178 => x"ED",  -- BLT D     -> SMALLER=1 -> TOMADO -> 180 (pula trap 179)
+        179 => x"20",  -- TRAP (deve ser pulado)
+
+        180 => x"F0",  -- HALT      -> 1111 0000 -> trava a CPU
         255    => x"AA",  -- reservada para LCD
         others => (others => '0')
     );
