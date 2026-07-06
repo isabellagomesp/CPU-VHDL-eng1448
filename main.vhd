@@ -17,12 +17,18 @@ entity main is
         CLK_DIV_FACTOR : positive := 25_000_000
     );
     port(
-        CLK        : in  std_logic;  -- clock rápido da FPGA (p/ o LCD da etapa 8)
+        CLK        : in  std_logic;  -- clock rápido da FPGA
         RESET      : in  std_logic;
         current_ir : out std_logic_vector(7 downto 0);
         alu_leds   : out std_logic_vector(4 downto 0);
         POS_255    : out std_logic_vector(7 downto 0);
-        clk_cpu    : out std_logic   -- clock lento que governa a CPU (exposto p/ depuração / LED de "heartbeat")
+        clk_cpu    : out std_logic;  -- clock lento que governa a CPU (heartbeat LED)
+        -- LCD (interface 4 bits)
+        lcd_rs     : out std_logic;
+        lcd_rw     : out std_logic;
+        lcd_e      : out std_logic;
+        lcd_d      : out std_logic_vector(3 downto 0);
+        sf_ce0     : out std_logic   -- desabilita StrataFlash (evita conflito com LCD)
     );
 end main;
 
@@ -36,6 +42,11 @@ architecture structural of main is
 
     -- clock lento gerado pelo divisor; alimenta CPU e RAM
     signal w_clk_slow : std_logic;
+
+    -- sinais internos para o LCD (lidos diretamente da CPU/RAM)
+    signal w_ir     : std_logic_vector(7 downto 0);
+    signal w_flags  : std_logic_vector(4 downto 0);
+    signal w_pos255 : std_logic_vector(7 downto 0);
 
 begin
 
@@ -55,24 +66,45 @@ begin
 
     cpu_inst: entity work.CPU(Behavioral)
         port map(
-            clk        => w_clk_slow,   -- CPU roda no clock lento
+            clk        => w_clk_slow,
             reset      => RESET,
             ram_addr   => w_addr,
             ram_din    => w_ram_to_cpu,
             ram_dout   => w_cpu_to_ram,
             ram_we     => w_we,
-            current_ir => current_ir,
-            alu_leds   => alu_leds
+            current_ir => w_ir,
+            alu_leds   => w_flags
         );
+
+    -- Espelha sinais internos para as saídas de depuração (LEDs/pinos)
+    current_ir <= w_ir;
+    alu_leds   <= w_flags;
 
     ram_inst: entity work.RAM_8x256(rtl)
         port map(
-            CLK     => w_clk_slow,      -- RAM compartilha o clock lento da CPU (protocolo MAR/MBR)
+            CLK     => w_clk_slow,
             DIN     => w_cpu_to_ram,
             ADDR    => w_addr,
             WE      => w_we,
             DOUT    => w_ram_to_cpu,
-            POS_255 => POS_255
+            POS_255 => w_pos255
+        );
+
+    POS_255 <= w_pos255;
+
+    -- LCD roda no clock rápido (50 MHz) para cumprir os tempos do HD44780
+    lcd_inst: entity work.lcd_controller(rtl)
+        port map(
+            clk    => CLK,
+            reset  => RESET,
+            ir     => w_ir,
+            flags  => w_flags,
+            mem255 => w_pos255,
+            lcd_rs => lcd_rs,
+            lcd_rw => lcd_rw,
+            lcd_e  => lcd_e,
+            lcd_d  => lcd_d,
+            sf_ce0 => sf_ce0
         );
 
 end structural;
