@@ -157,12 +157,35 @@ begin
     -- Converte mem255 (0-255) em três dígitos decimais
     -- =========================================================================
     DEC_CONVERT: process(mem255)
-        variable val : integer range 0 to 255;
+        variable val     : integer range 0 to 255;
+        variable rem_val : integer range 0 to 99;
+        variable tens    : integer range 0 to 9;
     begin
         val := to_integer(unsigned(mem255));
-        d_h <= val / 100;
-        d_t <= (val mod 100) / 10;
-        d_o <= val mod 10;
+
+        -- Centena (0 a 2): comparação + subtração (evita operador DIVIDE, não sintetizável p/ divisor != potência de 2)
+        if val >= 200 then
+            d_h     <= 2;
+            rem_val := val - 200;
+        elsif val >= 100 then
+            d_h     <= 1;
+            rem_val := val - 100;
+        else
+            d_h     <= 0;
+            rem_val := val;
+        end if;
+
+        -- Dezena e unidade (0 a 99): subtração repetida de 10 (loop de bound constante, sintetizável)
+        tens := 0;
+        for i in 0 to 9 loop
+            if rem_val >= 10 then
+                rem_val := rem_val - 10;
+                tens    := tens + 1;
+            end if;
+        end loop;
+
+        d_t <= tens;
+        d_o <= rem_val;
     end process;
 
     -- =========================================================================
