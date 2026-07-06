@@ -14,7 +14,7 @@ entity main is
     generic (
         -- Fator de divisão do clock. Padrão p/ FPGA de 50 MHz -> ~1 Hz na CPU.
         -- Use 1 em simulação (pass-through) para rodar a CPU em velocidade total.
-        CLK_DIV_FACTOR : positive := 25_000_000
+        CLK_DIV_FACTOR : positive := 2_500_000
     );
     port(
         CLK        : in  std_logic;  -- clock rápido da FPGA
