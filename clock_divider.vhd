@@ -19,12 +19,13 @@ use ieee.numeric_std.all;
 --------------------------------------------------------------------------------
 entity clock_divider is
     generic (
-        DIV_FACTOR : positive := 25_000_000  -- nº de bordas de clk_in por meio-período de clk_out
+        DIV_FACTOR : positive := 1_000_000  -- nº de bordas de clk_in por meio-período de clk_out
     );
     port (
         clk_in  : in  std_logic;  -- clock rápido (da FPGA)
         reset   : in  std_logic;
-        clk_out : out std_logic   -- clock lento (para a CPU/RAM)
+        clk_out : out std_logic  -- clock lento (para a CPU/RAM)
+        
     );
 end clock_divider;
 
@@ -42,6 +43,7 @@ begin
             if counter = DIV_FACTOR - 1 then
                 counter <= 0;
                 clk_reg <= not clk_reg;  -- meio-período concluído: inverte a saída
+               
             else
                 counter <= counter + 1;
             end if;
